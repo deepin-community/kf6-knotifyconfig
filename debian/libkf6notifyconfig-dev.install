@@ -1,0 +1,3 @@
+usr/include/KF6/KNotifyConfig/
+usr/lib/*/cmake/KF6NotifyConfig/
+usr/lib/*/libKF6NotifyConfig.so
