@@ -1,3 +1,9 @@
+kf6-knotifyconfig (6.6.0-1deepin1) unstable; urgency=medium
+
+  * Backport patch to replace phonon with Qt6 Multimedia
+
+ -- Wang Zichong <wangzichong@deepin.org>  Tue, 10, Feb 2026 15:12:00 +0800
+
 kf6-knotifyconfig (6.6.0-1) unstable; urgency=medium
 
   [ Aurélien COUDERC ]

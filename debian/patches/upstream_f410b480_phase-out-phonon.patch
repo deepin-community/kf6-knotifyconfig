@@ -1,0 +1,119 @@
+From f410b4808fa34fecf75969dadd4cbc1bad7cf690 Mon Sep 17 00:00:00 2001
+From: Christoph Cullmann <christoph@cullmann.io>
+Date: Sat, 14 Sep 2024 19:44:40 +0200
+Subject: [PATCH] port to Qt Multimedia
+
+allows to phase out Phonon
+---
+ .kde-ci.yml                        |  1 -
+ CMakeLists.txt                     |  6 +++---
+ src/CMakeLists.txt                 |  6 +++---
+ src/knotify-config.h.cmake         |  2 +-
+ src/knotifyconfigactionswidget.cpp | 23 +++++++++++++++++------
+ 5 files changed, 24 insertions(+), 14 deletions(-)
+
+diff --git a/.kde-ci.yml b/.kde-ci.yml
+index d9b5660..b11b601 100644
+--- a/.kde-ci.yml
++++ b/.kde-ci.yml
+@@ -6,7 +6,6 @@ Dependencies:
+     'frameworks/ki18n' : '@same'
+     'frameworks/knotifications' : '@same'
+     'frameworks/kxmlgui' : '@same'
+-    'libraries/phonon' : '@stable'
+ 
+ Options:
+   test-before-installing: True
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 0abb3fb..aafa32c 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -54,9 +54,9 @@ set_package_properties(Canberra PROPERTIES
+     TYPE OPTIONAL)
+ if (NOT Canberra_FOUND)
+     # This is REQUIRED since you cannot tell CMake "either one of those two optional ones are required"
+-    find_package(Phonon4Qt6 4.6.60 NO_MODULE REQUIRED)
+-    set_package_properties(Phonon4Qt6 PROPERTIES
+-        DESCRIPTION "Qt-based audio library"
++    find_package(Qt6Multimedia REQUIRED)
++    set_package_properties(Qt6Multimedia PROPERTIES
++        DESCRIPTION "Qt multimedia library"
+         PURPOSE "Needed to preview notification sounds when Canberra isn't available")
+ endif()
+ 
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index a7ae457..bf89ef4 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -1,5 +1,5 @@
+ set(HAVE_CANBERRA ${Canberra_FOUND})
+-set(HAVE_PHONON ${Phonon4Qt6_FOUND})
++set(HAVE_QTMULTIMEDIA ${Qt6Multimedia_FOUND})
+ configure_file(knotify-config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/knotify-config.h )
+ 
+ add_library(KF6NotifyConfig)
+@@ -52,8 +52,8 @@ endif()
+ 
+ if(Canberra_FOUND)
+   target_link_libraries(KF6NotifyConfig PRIVATE Canberra::Canberra)
+-elseif (Phonon4Qt6_FOUND)
+-    target_link_libraries(KF6NotifyConfig PRIVATE Phonon::phonon4qt6)
++elseif (Qt6Multimedia_FOUND)
++    target_link_libraries(KF6NotifyConfig PRIVATE Qt6::Multimedia)
+ endif()
+ 
+ ecm_generate_headers(KNotifyConfig_HEADERS
+diff --git a/src/knotify-config.h.cmake b/src/knotify-config.h.cmake
+index 8b04828..4cbcee4 100644
+--- a/src/knotify-config.h.cmake
++++ b/src/knotify-config.h.cmake
+@@ -2,7 +2,7 @@
+ #define KNOTIFY_CONFIG_H
+ 
+ #cmakedefine01 HAVE_CANBERRA
+-#cmakedefine01 HAVE_PHONON
++#cmakedefine01 HAVE_QTMULTIMEDIA
+ 
+ #endif /* KNOTIFY_CONFIG_H */
+ 
+diff --git a/src/knotifyconfigactionswidget.cpp b/src/knotifyconfigactionswidget.cpp
+index 638d5ca..18b43f1 100644
+--- a/src/knotifyconfigactionswidget.cpp
++++ b/src/knotifyconfigactionswidget.cpp
+@@ -16,8 +16,9 @@
+ 
+ #if HAVE_CANBERRA
+ #include <canberra.h>
+-#elif HAVE_PHONON
+-#include <phonon/mediaobject.h>
++#elif HAVE_QTMULTIMEDIA
++#include <QAudioOutput>
++#include <QMediaPlayer>
+ #endif
+ 
+ KNotifyConfigActionsWidget::KNotifyConfigActionsWidget(QWidget *parent)
+@@ -141,10 +142,20 @@ void KNotifyConfigActionsWidget::slotPlay()
+         qCWarning(KNOTIFYCONFIG_LOG) << "Failed to play sound with canberra:" << ca_strerror(ret);
+         return;
+     }
+-#elif HAVE_PHONON
+-    Phonon::MediaObject *media = Phonon::createPlayer(Phonon::NotificationCategory, soundURL);
+-    media->play();
+-    connect(media, SIGNAL(finished()), media, SLOT(deleteLater()));
++#elif HAVE_QTMULTIMEDIA
++    auto player = new QMediaPlayer(this);
++    auto audioOutput = new QAudioOutput(player);
++    connect(player, &QMediaPlayer::playingChanged, player, [player](bool playing) {
++        if (!playing) {
++            player->deleteLater();
++        }
++    });
++    connect(player, &QMediaPlayer::errorOccurred, player, [player]() {
++        player->deleteLater();
++    });
++    player->setAudioOutput(audioOutput);
++    player->setSource(soundURL);
++    player->play();
+ #endif
+ }
+ 
